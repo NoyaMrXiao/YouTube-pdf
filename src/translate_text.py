@@ -48,41 +48,123 @@ def translate_text(
     if dest not in LANGUAGES:
         raise ValueError(f"不支持的目標語言: {dest}。支持的語言: {list(LANGUAGES.keys())}")
     
+    # 處理空字符串或空列表
+    if isinstance(text, list):
+        if not text:  # 空列表
+            return []
+        # 過濾掉空字符串
+        filtered_texts = [t for t in text if t and t.strip()]
+        if not filtered_texts:  # 列表中的所有字符串都是空的
+            return [{'text': '', 'src': 'unknown', 'dest': dest, 'pronunciation': None, 'original': ''} for _ in text]
+        # 記錄原始索引以便恢復空字符串位置
+        text_indices = {i: i for i in range(len(text))}
+        non_empty_indices = [i for i, t in enumerate(text) if t and t.strip()]
+        if len(filtered_texts) < len(text):
+            # 有些字符串是空的，需要處理
+            pass
+    else:
+        # 單個字符串
+        if not text or not text.strip():
+            return {'text': text, 'src': 'unknown', 'dest': dest, 'pronunciation': None, 'original': text}
+    
     # 處理重試邏輯
     last_exception = None
     for attempt in range(retry_count):
         try:
+            # 構建翻譯參數，如果 src 為 None 則不傳遞（讓 googletrans 自動檢測）
+            translate_kwargs = {'dest': dest}
+            if src is not None:
+                translate_kwargs['src'] = src
+            
             if isinstance(text, list):
-                # 批量翻譯
-                result = translator.translate(text, dest=dest, src=src)
-                return [
-                    {
-                        'text': r.text,
-                        'src': r.src,
-                        'dest': r.dest,
-                        'pronunciation': getattr(r, 'pronunciation', None),
-                        'original': original
-                    }
-                    for r, original in zip(result, text)
-                ]
+                # 統一行為：逐個翻譯（不使用批量翻譯以避免錯誤）
+                translated_list = []
+                for i, original in enumerate(text):
+                    if not original or not original.strip():
+                        translated_list.append({
+                            'text': original,
+                            'src': 'unknown',
+                            'dest': dest,
+                            'pronunciation': None,
+                            'original': original
+                        })
+                    else:
+                        try:
+                            single_result = translator.translate(original, **translate_kwargs)
+                            if single_result is None:
+                                translated_list.append({
+                                    'text': original,
+                                    'src': 'unknown',
+                                    'dest': dest,
+                                    'pronunciation': None,
+                                    'original': original
+                                })
+                            else:
+                                translated_list.append({
+                                    'text': getattr(single_result, 'text', original) or original,
+                                    'src': getattr(single_result, 'src', 'unknown') or 'unknown',
+                                    'dest': getattr(single_result, 'dest', dest) or dest,
+                                    'pronunciation': getattr(single_result, 'pronunciation', None),
+                                    'original': original
+                                })
+                            # 添加小延遲以避免請求過快（在重試循環外減少延遲）
+                            if i < len(text) - 1:
+                                time.sleep(0.1)
+                        except Exception as single_error:
+                            # 單個翻譯失敗，使用原文
+                            translated_list.append({
+                                'text': original,
+                                'src': 'unknown',
+                                'dest': dest,
+                                'pronunciation': None,
+                                'original': original
+                            })
+                
+                return translated_list
             else:
                 # 單個文本翻譯
-                result = translator.translate(text, dest=dest, src=src)
+                result = translator.translate(text, **translate_kwargs)
+                
+                # 檢查結果是否為 None
+                if result is None:
+                    raise ValueError("翻譯返回 None，可能是網絡問題或服務器錯誤")
+                
                 return {
-                    'text': result.text,
-                    'src': result.src,
-                    'dest': result.dest,
+                    'text': getattr(result, 'text', text) or text,
+                    'src': getattr(result, 'src', 'unknown') or 'unknown',
+                    'dest': getattr(result, 'dest', dest) or dest,
                     'pronunciation': getattr(result, 'pronunciation', None),
                     'original': text
                 }
         
         except Exception as e:
             last_exception = e
-            if attempt < retry_count - 1:
-                print(f"⚠ 翻譯失敗，正在重試 ({attempt + 1}/{retry_count})...")
-                time.sleep(retry_delay)
+            error_str = str(e)
+            # 如果是 JSON NoneType 錯誤，增加延遲並重試
+            if "NoneType" in error_str or "JSON" in error_str:
+                if attempt < retry_count - 1:
+                    delay = retry_delay * (attempt + 1)  # 指數退避
+                    print(f"⚠ 翻譯失敗（可能是網絡問題），{delay}秒後重試 ({attempt + 1}/{retry_count})...")
+                    time.sleep(delay)
+                else:
+                    # 最後一次嘗試失敗
+                    if isinstance(text, list):
+                        # 批量翻譯失敗，返回原文列表
+                        print(f"⚠ 批量翻譯最終失敗，返回原文")
+                        return [
+                            {'text': t, 'src': 'unknown', 'dest': dest, 'pronunciation': None, 'original': t}
+                            for t in text
+                        ]
+                    else:
+                        # 單個翻譯失敗，返回原文
+                        print(f"⚠ 翻譯最終失敗，返回原文")
+                        return {'text': text, 'src': 'unknown', 'dest': dest, 'pronunciation': None, 'original': text}
             else:
-                raise Exception(f"翻譯失敗，已重試 {retry_count} 次: {str(e)}")
+                if attempt < retry_count - 1:
+                    print(f"⚠ 翻譯失敗，正在重試 ({attempt + 1}/{retry_count})...")
+                    time.sleep(retry_delay)
+                else:
+                    raise Exception(f"翻譯失敗，已重試 {retry_count} 次: {error_str}")
     
     if last_exception:
         raise last_exception
@@ -204,13 +286,13 @@ def translate_list(
     batch_size: int = 15
 ) -> List[str]:
     """
-    批量翻譯文本列表
+    翻譯文本列表（使用逐個翻譯，可選分批處理）
     
     參數:
         texts (List[str]): 要翻譯的文本列表
         dest (str): 目標語言代碼
         src (str, optional): 源語言代碼
-        batch_size (int): 批次大小（googletrans可能有字符限制）
+        batch_size (int): 批次大小（用於進度顯示，實際是逐個翻譯）
     
     返回:
         List[str]: 翻譯後的文本列表
@@ -258,14 +340,19 @@ def translate_list_parallel(
     max_workers: int = 5
 ) -> List[str]:
     """
-    並行批量翻譯文本列表
+    並行翻譯文本列表（使用逐個翻譯 + 並發執行）
+    
+    設計：
+    - 統一使用逐個翻譯（避免批量翻譯的錯誤）
+    - 通過多線程並發處理不同批次來提高效率
+    - 每個批次內的文本逐個翻譯，但多個批次並發執行
     
     參數:
         texts (List[str]): 要翻譯的文本列表
         dest (str): 目標語言代碼
         src (str, optional): 源語言代碼
-        batch_size (int): 每批次的文本數量
-        max_workers (int): 最大並發線程數
+        batch_size (int): 每批次的文本數量（每個線程處理一個批次）
+        max_workers (int): 最大並發線程數（同時處理的批次數）
     
     返回:
         List[str]: 翻譯後的文本列表（順序與輸入一致）
@@ -273,7 +360,7 @@ def translate_list_parallel(
     if not texts:
         return []
     
-    # 如果列表較小，直接翻譯
+    # 如果列表較小，直接使用 translate_list（也是逐個翻譯）
     if len(texts) <= batch_size * max_workers:
         return translate_list(texts, dest=dest, src=src, batch_size=batch_size)
     
@@ -286,18 +373,30 @@ def translate_list_parallel(
     translated_texts = [None] * len(texts)  # 預分配列表以保持順序
     
     def translate_batch(batch_idx, batch_texts):
-        """翻譯單個批次"""
+        """翻譯單個批次（並發執行，每個文本逐個翻譯）"""
         try:
-            result = translate_text(batch_texts, dest=dest, src=src)
-            # 確保正確提取翻譯文本
+            # 逐個翻譯批次中的每個文本（並發執行時每個線程處理一個批次）
             translated_batch = []
-            for r in result:
-                if isinstance(r, dict):
-                    translated_batch.append(r.get('text', ''))
-                elif hasattr(r, 'text'):
-                    translated_batch.append(r.text)
+            for i, original_text in enumerate(batch_texts):
+                if not original_text or not original_text.strip():
+                    translated_batch.append(original_text)
                 else:
-                    translated_batch.append(str(r))
+                    try:
+                        # 使用單個文本翻譯（統一使用逐個翻譯，避免批量翻譯錯誤）
+                        # 在並發環境中，減少重試次數以加快速度，錯誤處理在外部層面進行
+                        result = translate_text(original_text, dest=dest, src=src, retry_count=2)
+                        
+                        if isinstance(result, dict):
+                            translated_text = result.get('text', '') or original_text
+                        else:
+                            translated_text = original_text
+                        
+                        translated_batch.append(translated_text)
+                    except Exception as single_error:
+                        # 單個文本翻譯失敗，使用原文
+                        print(f"⚠ 批次 {batch_idx} 文本 {i+1} 翻譯失敗: {single_error}")
+                        translated_batch.append(original_text)
+            
             print(f"✓ 批次 {batch_idx} 翻譯完成，共 {len(translated_batch)} 條")
             return batch_idx, translated_batch
         except Exception as e:

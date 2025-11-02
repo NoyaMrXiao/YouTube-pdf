@@ -113,8 +113,8 @@ def register_apple_fonts():
 def generate_transcript_pdf(segments, output_path, has_speakers=False, title="转录文本"):
     """生成转录文本的PDF文件"""
     doc = SimpleDocTemplate(output_path, pagesize=A4, 
-                          leftMargin=2*cm, rightMargin=2*cm,
-                          topMargin=2*cm, bottomMargin=2*cm)
+                          leftMargin=1.5*cm, rightMargin=1.5*cm,
+                          topMargin=1.5*cm, bottomMargin=1.5*cm)
     story = []
     
     # 注册Apple字体
@@ -123,45 +123,45 @@ def generate_transcript_pdf(segments, output_path, has_speakers=False, title="�
     # 创建样式
     title_style = ParagraphStyle(
         'TitleStyle',
-        fontSize=20,
+        fontSize=18,
         textColor=colors.HexColor('#2c3e50'),
-        spaceAfter=20,
+        spaceAfter=10,
         spaceBefore=0,
         fontName=font_name,
-        leading=26
+        leading=22
     )
     
     speaker_style = ParagraphStyle(
         'SpeakerStyle',
-        fontSize=11,
-        textColor=colors.HexColor('#3498db'),
-        spaceAfter=5,
-        fontName=font_name,
-        leading=14
-    )
-    
-    time_style = ParagraphStyle(
-        'TimeStyle',
         fontSize=10,
-        textColor=colors.HexColor('#7f8c8d'),
-        spaceAfter=5,
+        textColor=colors.HexColor('#3498db'),
+        spaceAfter=2,
         fontName=font_name,
         leading=12
     )
     
+    time_style = ParagraphStyle(
+        'TimeStyle',
+        fontSize=9,
+        textColor=colors.HexColor('#7f8c8d'),
+        spaceAfter=2,
+        fontName=font_name,
+        leading=11
+    )
+    
     text_style = ParagraphStyle(
         'TextStyle',
-        fontSize=12,
+        fontSize=11,
         textColor=colors.HexColor('#34495e'),
-        spaceAfter=15,
+        spaceAfter=8,
         alignment=TA_JUSTIFY,
         fontName=font_name,
-        leading=18
+        leading=15
     )
     
     # 添加标题
     story.append(Paragraph(title, title_style))
-    story.append(Spacer(1, 0.5*cm))
+    story.append(Spacer(1, 0.3*cm))
     
     # 添加段落
     for idx, segment in enumerate(segments, 1):
@@ -202,7 +202,7 @@ def generate_transcript_pdf(segments, output_path, has_speakers=False, title="�
         text_escaped = text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
         story.append(Paragraph(text_escaped, text_style))
         
-        story.append(Spacer(1, 0.3*cm))
+        story.append(Spacer(1, 0.15*cm))
     
     # 生成PDF
     doc.build(story)
@@ -212,8 +212,8 @@ def generate_transcript_pdf(segments, output_path, has_speakers=False, title="�
 def generate_transcript_pdf_with_translation(segments, translations, output_path, has_speakers=False, title="转录文本（含翻译）"):
     """生成包含原文和翻译的PDF文件"""
     doc = SimpleDocTemplate(output_path, pagesize=A4, 
-                          leftMargin=2*cm, rightMargin=2*cm,
-                          topMargin=2*cm, bottomMargin=2*cm)
+                          leftMargin=1.5*cm, rightMargin=1.5*cm,
+                          topMargin=1.5*cm, bottomMargin=1.5*cm)
     story = []
     
     # 注册Apple字体
@@ -222,56 +222,56 @@ def generate_transcript_pdf_with_translation(segments, translations, output_path
     # 创建样式
     title_style = ParagraphStyle(
         'TitleStyle',
-        fontSize=20,
+        fontSize=18,
         textColor=colors.HexColor('#2c3e50'),
-        spaceAfter=20,
+        spaceAfter=10,
         spaceBefore=0,
         fontName=font_name,
-        leading=26
+        leading=22
     )
     
     speaker_style = ParagraphStyle(
         'SpeakerStyle',
-        fontSize=11,
-        textColor=colors.HexColor('#3498db'),
-        spaceAfter=5,
-        fontName=font_name,
-        leading=14
-    )
-    
-    time_style = ParagraphStyle(
-        'TimeStyle',
         fontSize=10,
-        textColor=colors.HexColor('#7f8c8d'),
-        spaceAfter=5,
+        textColor=colors.HexColor('#3498db'),
+        spaceAfter=2,
         fontName=font_name,
         leading=12
     )
     
+    time_style = ParagraphStyle(
+        'TimeStyle',
+        fontSize=9,
+        textColor=colors.HexColor('#7f8c8d'),
+        spaceAfter=2,
+        fontName=font_name,
+        leading=11
+    )
+    
     original_style = ParagraphStyle(
         'OriginalStyle',
-        fontSize=12,
+        fontSize=11,
         textColor=colors.HexColor('#34495e'),
-        spaceAfter=8,
+        spaceAfter=4,
         alignment=TA_JUSTIFY,
         fontName=font_name,
-        leading=18
+        leading=15
     )
     
     translation_style = ParagraphStyle(
         'TranslationStyle',
-        fontSize=12,
+        fontSize=11,
         textColor=colors.HexColor('#e74c3c'),  # 红色
-        spaceAfter=15,
+        spaceAfter=8,
         alignment=TA_JUSTIFY,
         fontName=font_name,
-        leading=18,
-        leftIndent=0.5*cm
+        leading=15,
+        leftIndent=0.3*cm
     )
     
     # 添加标题
     story.append(Paragraph(title, title_style))
-    story.append(Spacer(1, 0.5*cm))
+    story.append(Spacer(1, 0.3*cm))
     
     # 添加段落（一段原文一段翻译）
     for idx, (segment, translation) in enumerate(zip(segments, translations), 1):
@@ -318,7 +318,7 @@ def generate_transcript_pdf_with_translation(segments, translations, output_path
             translation_escaped = translated_text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             story.append(Paragraph(f"<b>翻译:</b><br/>{translation_escaped}", translation_style))
         
-        story.append(Spacer(1, 0.4*cm))
+        story.append(Spacer(1, 0.2*cm))
     
     # 生成PDF
     doc.build(story)
