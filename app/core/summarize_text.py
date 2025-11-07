@@ -13,11 +13,15 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # 處理導入路徑
 try:
-    from .chat_completion import chat_completion_simple
+    from app.core.chat_completion import chat_completion_simple
 except ImportError:
-    # 如果相對導入失敗，嘗試絕對導入
-    sys.path.insert(0, str(Path(__file__).parent))
-    from chat_completion import chat_completion_simple
+    # 如果絕對導入失敗，嘗試相對導入
+    try:
+        from .chat_completion import chat_completion_simple
+    except ImportError:
+        # 最後嘗試本地導入
+        sys.path.insert(0, str(Path(__file__).parent))
+        from chat_completion import chat_completion_simple
 
 # 配置日志
 def setup_logger(log_file: Optional[str] = None):

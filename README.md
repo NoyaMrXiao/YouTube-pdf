@@ -8,9 +8,12 @@
 .
 ├── src/                           # 主要功能源代碼
 │   ├── download_youtube_audio.py  # YouTube音頻下載功能
+│   ├── get_youtube_subtitles.py  # YouTube字幕獲取功能
+│   ├── get_youtube_chapters.py   # YouTube章節獲取功能
+│   ├── parse_subtitle.py          # 字幕文件解析功能
 │   ├── download_podcast.py        # 播客RSS下載功能
 │   ├── transcribe_audio.py        # WhisperX語音轉文本
-│   ├── youtube_to_text.py         # YouTube完整流程（下載+轉錄）
+│   ├── youtube_to_text.py         # YouTube完整流程（優先字幕，回退轉錄）
 │   ├── summarize_text.py          # 文本總結功能
 │   ├── translate_text.py          # 文本翻譯功能
 │   └── chat_completion.py         # AI聊天完成功能
@@ -58,6 +61,106 @@ audio_file = download_youtube_audio_simple(url)
 
 **詳細說明：** 參見 [docs/YOUTUBE_DOWNLOAD_README.md](docs/YOUTUBE_DOWNLOAD_README.md)
 
+### 1.5. YouTube 字幕獲取 🆕
+
+直接獲取YouTube視頻的字幕，支持手動上傳和自動生成的字幕。
+
+**使用方法：**
+```python
+from src.get_youtube_subtitles import (
+    get_youtube_subtitles,
+    get_available_subtitles,
+    get_subtitle_text,
+    list_available_subtitles
+)
+
+url = "https://www.youtube.com/watch?v=VIDEO_ID"
+
+# 列出所有可用字幕
+list_available_subtitles(url)
+
+# 下載指定語言的字幕
+result = get_youtube_subtitles(
+    url,
+    languages=['en', 'zh'],  # 可以下載多種語言
+    subtitle_format='srt'    # 支持 srt, vtt, ttml, json3
+)
+
+# 直接獲取字幕文本（不下載文件）
+subtitle_text = get_subtitle_text(url, language='en')
+```
+
+**功能特點：**
+- 支持手動上傳和自動生成的字幕
+- 支持多種字幕格式（SRT, VTT, TTML, JSON3）
+- 可同時下載多種語言的字幕
+- 自動檢測可用字幕語言
+- 優先使用手動字幕（更準確）
+
+**命令行使用：**
+```bash
+# 列出所有可用字幕
+python src/get_youtube_subtitles.py <YouTube_URL>
+
+# 下載指定語言的字幕
+python src/get_youtube_subtitles.py <YouTube_URL> en
+
+# 下載多種語言
+python src/get_youtube_subtitles.py <YouTube_URL> en,zh
+
+# 指定格式
+python src/get_youtube_subtitles.py <YouTube_URL> en srt
+```
+
+### 1.6. YouTube 章節獲取 🆕
+
+獲取YouTube視頻的章節時間戳和標題信息。
+
+**使用方法：**
+```python
+from src.get_youtube_chapters import (
+    get_youtube_chapters,
+    get_chapters_with_timestamps,
+    print_chapters,
+    save_chapters_to_file
+)
+
+url = "https://www.youtube.com/watch?v=VIDEO_ID"
+
+# 獲取章節信息
+chapters = get_youtube_chapters(url)
+
+# 打印章節信息
+print_chapters(chapters)
+
+# 獲取帶格式化時間戳的章節
+chapters_with_ts = get_chapters_with_timestamps(url)
+
+# 保存章節到文件
+save_chapters_to_file(url, "chapters.txt", format="txt")  # txt, json, csv
+```
+
+**功能特點：**
+- 自動獲取視頻章節信息
+- 支持多種輸出格式（TXT, JSON, CSV）
+- 包含開始時間、結束時間、持續時間
+- 格式化時間戳顯示
+
+**命令行使用：**
+```bash
+# 顯示章節信息
+python src/get_youtube_chapters.py <YouTube_URL>
+
+# 保存為文本文件
+python src/get_youtube_chapters.py <YouTube_URL> chapters.txt
+
+# 保存為JSON格式
+python src/get_youtube_chapters.py <YouTube_URL> chapters.json json
+
+# 保存為CSV格式
+python src/get_youtube_chapters.py <YouTube_URL> chapters.csv csv
+```
+
 ### 2. 播客下載
 
 支持通過RSS feed下載播客音頻文件。
@@ -100,11 +203,22 @@ result = youtube_to_text(url, model_name="base")
 ```
 
 **功能特點：**
+- 🆕 **優先使用字幕**：自動檢測並使用YouTube字幕（更快更準確）
+- **智能回退**：如果字幕不可用，自動回退到音頻轉錄方法
 - 支持多種Whisper模型（tiny, base, small, medium, large）
-- 支持說話人分離（需要HF_TOKEN）
+- 支持說話人分離（需要HF_TOKEN，僅在轉錄模式下）
 - 支持分塊轉錄（處理長音頻）
 - 自動生成帶時間戳的轉錄文本
 - 支持生成PDF格式的轉錄文檔
+
+**字幕優先模式：**
+```python
+# 優先使用字幕（默認）
+result = youtube_to_text(url, prefer_subtitles=True)
+
+# 強制使用音頻轉錄（跳過字幕）
+result = youtube_to_text(url, prefer_subtitles=False)
+```
 
 **詳細說明：** 參見 [docs/WHISPERX_README.md](docs/WHISPERX_README.md)
 
@@ -180,6 +294,32 @@ uv run python web_app.py
 ```
 
 然後在瀏覽器中訪問 `http://127.0.0.1:5000`
+
+### 7.1. 桌面應用程序 🆕
+
+使用pywebview將Web應用包裝為桌面應用，無需瀏覽器即可使用。
+
+**啟動方法：**
+```bash
+uv run python desktop_app.py
+```
+
+**桌面應用特點：**
+- 🖥️ 原生桌面窗口體驗
+- 🚀 自動啟動本地服務器
+- 🎨 與Web版本相同的功能
+- 📦 無需手動打開瀏覽器
+- 🔒 本地運行，數據安全
+
+**系統要求：**
+- macOS: 需要安裝WebKit（通常已預裝）
+- Windows: 需要安裝Microsoft Edge WebView2 Runtime
+- Linux: 需要安裝WebKitGTK
+
+**安裝依賴：**
+```bash
+uv add pywebview
+```
 
 **Web應用功能：**
 - 📥 支持YouTube視頻和播客RSS下載
